@@ -79,9 +79,10 @@ else
     private void Input(ChangeEventArgs arg)
     {
         string filter = arg.Value?.ToString() ?? string.Empty;
-
+        @* ?? string.Empty --> jeśli Value było null, to zamiast niego zostanie przypisany pusty string. *@
         newforecasts = forecasts
             .Where(f => f.Summary != null && f.Summary.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            @* StringComparison.OrdinalIgnoreCase --> Ignoruje wielkość liter. *@
             .ToArray();
     }
 }
