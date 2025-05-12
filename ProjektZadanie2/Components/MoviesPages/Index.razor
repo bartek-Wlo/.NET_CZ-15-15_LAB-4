@@ -1,0 +1,67 @@
+@page "/movies"
+@using ProjektZadanie2.Data.Models
+@using ProjektZadanie2.Data 
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<ApplicationDbContext> DbFactory // Zalecane wstrzykiwanie dla UI
+@inject NavigationManager Navigation
+
+<h3>Movie List</h3>
+
+<p>
+    <a href="/movies/create">Create New</a>
+</p>
+
+@if (movies == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Release Year</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var movie in movies)
+            {
+                <tr>
+                    <td>@movie.Title</td>
+                    <td>@movie.Description</td> @* Zmieniamy z Director na Description *@
+                    <td>@movie.ReleaseYear</td>
+                    <td>@movie.ReleaseDate?.ToShortDateString()</td> @* Odwołujemy się do ReleaseDate *@
+                    <td>@movie.Rate</td> @* Odwołujemy się do Rate *@
+                    <td>
+                        <a href="/movies/edit/@movie.Id">Edit</a> |
+                        <a href="/movies/details/@movie.Id">Details</a> | @* Jeśli chcesz dodać stronę Details *@
+                        <a href="/movies/delete/@movie.Id">Delete</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Movie>? movies;
+    private ApplicationDbContext _dbContext = default!; // Zmienna do przechowywania kontekstu
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Uzyskaj instancję DbContext z fabryki
+        _dbContext = DbFactory.CreateDbContext();
+        // Załaduj filmy z bazy danych
+        movies = await _dbContext.Movies.ToListAsync();
+    }
+
+    // Ważne: Zwolnij DbContext, gdy komponent nie jest już używany
+    // W Blazor Web App, często potrzebujesz IDisposable
+     public async void Dispose()
+     {
+         await _dbContext.DisposeAsync();
+     }
+}

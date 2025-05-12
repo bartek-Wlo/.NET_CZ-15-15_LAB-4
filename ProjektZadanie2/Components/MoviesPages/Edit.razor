@@ -1,0 +1,126 @@
+@page "/movies/edit/{id:int}"
+@attribute [Authorize] 
+
+@rendermode InteractiveServer 
+
+@using ProjektZadanie2.Data.Models
+@using ProjektZadanie2.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms @* Potrzebne dla EditForm i AntiforgeryToken *@
+@using Microsoft.AspNetCore.Authorization @* Potrzebne dla [Authorize] (jeśli nie w _Imports) *@
+
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<h3>Edit Movie</h3>
+
+@if (isLoading) // Flaga ładowania
+{
+    <p><em>Loading movie details for editing...</em></p>
+}
+else if (movie == null) // Obsługa przypadku, gdy film nie został znaleziony
+{
+    <div class="alert alert-danger">
+        Movie with ID @id not found.
+    </div>
+    <a href="/movies" class="btn btn-secondary">Back to List</a>
+}
+else // Film znaleziony, wyświetlamy formularz edycji
+{
+    <EditForm Model="@movie" OnValidSubmit="@HandleValidSubmit" FormName="edit-movie"> @* Formularz edycji, nazwa formularza *@
+        @* WAŻNE: Dodaj ochronę przed CSRF *@
+        <AntiforgeryToken />
+
+        <DataAnnotationsValidator />
+        <ValidationSummary /> @* Komunikaty o błędach walidacji *@
+
+        @* POLA FORMULARZA DLA KAŻDEJ EDYTOWALNEJ WŁAŚCIWOŚCI *@
+        <div class="mb-3">
+            <label for="title" class="form-label">Title:</label>
+            <InputText id="title" class="form-control" @bind-Value="movie.Title" /> @* @bind-Value powiązuje pole z właściwością obiektu movie *@
+        </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Description:</label>
+            <InputText id="description" class="form-control" @bind-Value="movie.Description" />
+        </div>
+         <div class="mb-3">
+            <label for="releaseYear" class="form-label">Release Year:</label>
+            @* Używamy InputNumber TValue="int?" dla nullable int *@
+            <InputNumber TValue="int?" id="releaseYear" class="form-control" @bind-Value="movie.ReleaseYear" />
+        </div>
+         <div class="mb-3">
+            <label for="releaseDate" class="form-label">Release Date:</label>
+             @* Używamy InputDate TValue="DateTime?" dla nullable DateTime *@
+            <InputDate TValue="DateTime?" id="releaseDate" class="form-control" @bind-Value="movie.ReleaseDate" />
+        </div>
+         <div class="mb-3">
+            <label for="rate" class="form-label">Rate:</label>
+             @* Używamy InputNumber TValue="double?" dla nullable double *@
+            <InputNumber TValue="double?" id="rate" class="form-control" @bind-Value="movie.Rate" />
+        </div>
+        
+
+
+        
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="/movies" class="btn btn-secondary">Cancel</a>
+    </EditForm>
+}
+
+
+@code {
+    [Parameter]
+    public int id { get; set; } // Parametr routingu dla ID filmu do edycji
+
+    private Movie? movie; // Obiekt filmu, który będzie edytowany. Nullable, bo może nie zostać znaleziony.
+    private ApplicationDbContext? _dbContext; // Zmienna do przechowywania kontekstu z OnParametersSetAsync
+    private bool isLoading = true; // Flaga stanu ładowania
+
+    // Używamy OnParametersSetAsync, ponieważ ID pochodzi z parametru routingu i chcemy wczytać dane
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        // Utwórz NOWĄ instancję DbContext, aby wczytać film
+        _dbContext = DbFactory.CreateDbContext();
+
+        // Pobierz film z bazy danych na podstawie ID
+        // FindAsync jest dobrym wyborem dla kluczy głównych
+        movie = await _dbContext.Movies.FindAsync(id);
+
+        // Ważne: Zwolnij kontekst użyty do wczytania danych natychmiast po zakończeniu ładowania.
+        // Unikamy w ten sposób długo żyjących kontekstów w komponentach interaktywnych.
+        await _dbContext.DisposeAsync();
+        _dbContext = null; // Ustaw na null, aby wskazać, że kontekst został zwolniony
+
+        isLoading = false;
+    }
+
+    // Metoda wywoływana przez EditForm po pomyślnej walidacji
+    private async Task HandleValidSubmit(EditContext editContext)
+    {
+         // Sprawdź, czy obiekt movie nie jest null (choć formularz nie powinien się wyświetlać, jeśli jest)
+         if (movie != null)
+         {
+             // Potrzebujemy NOWEJ instancji DbContext do wykonania operacji zapisu
+             using var dbContextForSave = DbFactory.CreateDbContext();
+
+             // EF Core śledzi obiekt 'movie'. Metoda Update informuje EF,
+             // że ten obiekt (który został zmodyfikowany przez @bind-Value)
+             // powinien zostać zaktualizowany w bazie danych.
+             dbContextForSave.Update(movie); // Możesz użyć dbContextForSave.Movies.Update(movie);
+
+             await dbContextForSave.SaveChangesAsync(); // Zapisz zmiany w bazie danych
+         }
+
+        // Przekieruj użytkownika z powrotem do listy filmów po zapisie
+        Navigation.NavigateTo("/movies");
+    }
+
+    // Ważne: Implementacja IDisposable, aby zwolnić kontekst, jeśli komponent zostanie zniszczony
+    // zanim OnParametersSetAsync zakończy działanie lub jeśli będziesz używać kontekstu w inny sposób.
+    // Choć DisposeAsync() jest już wywoływane na końcu OnParametersSetAsync, to dobra praktyka.
+     public async void Dispose()
+     {
+          if (_dbContext != null) await _dbContext.DisposeAsync();
+     }
+}
