@@ -12,4 +12,7 @@ public class Movie
     [DataType(DataType.Date)]
     public DateTime? ReleaseDate { get; set; }
     public double? Rate { get; set; }
+    
+    public int RateNumbers { get; private set; }
+    public void IncreaseRateNumbers() {++RateNumbers;}
 }

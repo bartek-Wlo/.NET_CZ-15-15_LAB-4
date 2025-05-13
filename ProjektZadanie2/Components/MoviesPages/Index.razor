@@ -31,13 +31,13 @@ else
             {
                 <tr>
                     <td>@movie.Title</td>
-                    <td>@movie.Description</td> @* Zmieniamy z Director na Description *@
+                    @* <td>@movie.Description</td> *@
                     <td>@movie.ReleaseYear</td>
-                    <td>@movie.ReleaseDate?.ToShortDateString()</td> @* Odwołujemy się do ReleaseDate *@
-                    <td>@movie.Rate</td> @* Odwołujemy się do Rate *@
+                    <td>@movie.ReleaseDate?.ToShortDateString()</td> 
+                    <td>@movie.Rate</td> 
                     <td>
                         <a href="/movies/edit/@movie.Id">Edit</a> |
-                        <a href="/movies/details/@movie.Id">Details</a> | @* Jeśli chcesz dodać stronę Details *@
+                        <a href="/movies/details/@movie.Id">Details</a> |
                         <a href="/movies/delete/@movie.Id">Delete</a>
                     </td>
                 </tr>

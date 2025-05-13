@@ -1,0 +1,194 @@
+@page "/movies/details/{id:int}"
+@attribute [Authorize]
+
+@rendermode InteractiveServer
+
+@using ProjektZadanie2.Data.Models
+@using ProjektZadanie2.Data
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms // Dla EditForm
+@using Microsoft.AspNetCore.Identity // Dla UserManager, jeśli potrzebne (nie w tej uproszczonej wersji)
+@using Microsoft.AspNetCore.Components.Authorization // Dla AuthorizeView
+@using Microsoft.AspNetCore.Authorization // Dla [Authorize]
+@using System.ComponentModel.DataAnnotations // Dla [Required], [Range] na RatingInputModel
+
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider // Potrzebne dla AuthorizeView
+
+@* Nie potrzebujemy wstrzykiwać UserManager w tej uproszczonej wersji,
+   ponieważ nie śledzimy, który użytkownik dodał konkretną ocenę.
+   @inject UserManager<ApplicationUser> UserManager *@
+
+
+<h3>Movie Details</h3>
+
+@if (isLoading) // Flaga ładowania
+{
+    <p><em>Loading movie details...</em></p>
+}
+else if (movie == null) // Obsługa przypadku, gdy film nie został znaleziony
+{
+    <div class="alert alert-danger">
+        Movie with ID @id not found.
+    </div>
+    <a href="/movies" class="btn btn-secondary">Back to List</a>
+}
+else // Film znaleziony, wyświetlamy szczegóły
+{
+    <h4>@movie.Title</h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-3">Description:</dt>
+        <dd class="col-sm-9">@movie.Description</dd>
+
+        <dt class="col-sm-3">Release Year:</dt>
+        <dd class="col-sm-9">@movie.ReleaseYear</dd>
+
+         @* Wyświetl datę tylko jeśli istnieje *@
+         @if(movie.ReleaseDate.HasValue)
+         {
+             <dt class="col-sm-3">Release Date:</dt>
+             <dd class="col-sm-9">@movie.ReleaseDate.Value.ToShortDateString()</dd>
+         }
+
+        @* Wyświetl ocenę filmu i liczbę ocen (na podstawie danych z obiektu movie) *@
+        <dt class="col-sm-3">Average Rate:</dt>
+        <dd class="col-sm-9">
+            @(movie.Rate.HasValue ? movie.Rate.Value.ToString("F1") : "Not yet rated") @* Formatujemy do 1 miejsca po przecinku *@
+            (@movie.RateNumbers ratings) @* Wyświetlamy liczbę ocen *@
+        </dd>
+
+        @* DODAJ INNE POLA, KTÓRE CHCESZ WYŚWIETLIĆ *@
+    </dl>
+
+    @* Sekcja dodawania oceny przez zalogowanego użytkownika *@
+    <AuthorizeView>
+        <Authorized>
+            <h4>Submit Your Rating</h4>
+
+             @* Formularz dodawania nowej oceny - Model to prosta klasa pomocnicza *@
+             <EditForm Model="@ratingInput" OnValidSubmit="@HandleRatingSubmit" FormName="submit-rating" Context="editFormContext"> @* Dodajemy Context dla EditForm *@
+                <AntiforgeryToken /> @* Ochrona CSRF *@
+                <DataAnnotationsValidator /> @* Walidacja na podstawie atrybutów w RatingInputModel *@
+                <ValidationSummary /> @* Komunikaty o błędach walidacji *@
+
+                <div class="mb-3">
+                    <label for="ratingValue" class="form-label">Rate (1-10):</label>
+                    @* Używamy InputNumber dla int z walidacją Range *@
+                    <InputNumber TValue="int" id="ratingValue" class="form-control" @bind-Value="ratingInput.Value" />
+                     <ValidationMessage For="@(() => ratingInput.Value)" /> @* Komunikat błędu dla konkretnego pola *@
+                </div>
+
+                <button type="submit" class="btn btn-primary">Submit Rating</button>
+            </EditForm>
+
+        </Authorized>
+        <NotAuthorized>
+            @* Sekcja widoczna dla niezalogowanych - informacja o możliwości oceniania po zalogowaniu *@
+             <p>
+                 <a href="Account/Login">Log in</a> to rate this movie.
+             </p>
+        </NotAuthorized>
+    </AuthorizeView>
+
+    @* Link powrotu do listy filmów *@
+    <a href="/movies" class="btn btn-secondary mt-3">Back to List</a>
+}
+
+
+@code {
+    [Parameter]
+    public int id { get; set; } // Parametr routingu dla ID filmu
+
+    private Movie? movie; // Obiekt filmu
+    private bool isLoading = true; // Flaga ładowania
+    private ApplicationDbContext? _dbContext;
+
+    // Klasa pomocnicza tylko dla formularza na tej stronie (do zbierania inputu oceny)
+    public class RatingInputModel
+    {
+        // Wartość musi być podana i mieścić się w zakresie 1-10
+        [Required(ErrorMessage = "Rating value is required.")]
+        [Range(1, 10, ErrorMessage = "Rating must be between 1 and 10.")]
+        public int Value { get; set; } // Wartość nowej oceny
+    }
+
+    private RatingInputModel ratingInput = new(); // Model dla formularza oceny
+
+
+    // Używamy OnParametersSetAsync, ponieważ ID pochodzi z parametru routingu i chcemy wczytać dane
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+
+        using var dbContext = DbFactory.CreateDbContext(); // Utwórz nowy kontekst do wczytywania danych
+
+        // Pobierz film z bazy danych
+        movie = await dbContext.Movies.FindAsync(id);
+
+        await dbContext.DisposeAsync(); // Zwolnij kontekst po użyciu
+
+        // Zainicjalizuj model formularza oceny - zresetuj wartość na 0/domyślną przy wczytaniu strony
+        ratingInput = new RatingInputModel();
+
+        isLoading = false;
+    }
+
+    // Metoda obsługująca przesłanie formularza oceny (OnValidSubmit)
+    private async Task HandleRatingSubmit(EditContext editContext)
+    {
+         // Sprawdź, czy obiekt filmu istnieje i czy dane formularza są w porządku
+        if (movie != null) // Walidacja EditForm już przeszła pomyślnie
+        {
+            using var dbContextForSave = DbFactory.CreateDbContext(); // Nowy kontekst do zapisu
+
+            // Pobierz film ponownie W TYM SAMYM kontekście, w którym będziemy zapisywać zmiany
+            var movieToUpdate = await dbContextForSave.Movies.FindAsync(id);
+
+            if(movieToUpdate != null)
+            {
+                 // Pobierz aktualne statystyki z obiektu w kontekście
+                 double currentTotal = (movieToUpdate.Rate ?? 0) * movieToUpdate.RateNumbers; // Całkowita suma poprzednich ocen (użyj 0 jeśli Rate jest null)
+                 int currentCount = movieToUpdate.RateNumbers; // Liczba poprzednich ocen
+
+                 int newRatingValue = ratingInput.Value; // Wartość nowej oceny z formularza
+
+                 // Przelicz nową całkowitą sumę i nową liczbę ocen
+                 double updatedTotal = currentTotal + newRatingValue;
+                 int updatedCount = currentCount + 1;
+
+                 // Aktualizuj właściwości filmu
+                 movieToUpdate.Rate = updatedTotal / updatedCount; // Nowa średnia (double/int = double)
+                 @* movieToUpdate.RateNumbers = updatedCount; // Nowa liczba ocen *@
+                 movieToUpdate.IncreaseRateNumbers();
+
+                 // Oznacz film do aktualizacji w bazie danych
+                 // dbContextForSave.Movies.Update(movieToUpdate); // Update jest zazwyczaj automatyczny po modyfikacji wczytanego obiektu
+                                                                   // ale jawne wywołanie nie szkodzi i jest czytelne.
+
+                 // Zapisz zmiany w bazie danych
+                 await dbContextForSave.SaveChangesAsync();
+
+                 // Po zapisie, załaduj ponownie dane strony, aby odświeżyć wyświetlaną średnią ocenę i licznik
+                 // Robimy to, wywołując metodę ładowania danych OnParametersSetAsync
+                 await OnParametersSetAsync();
+
+                 // Poinformuj Blazora, że stan komponentu się zmienił i wymaga ponownego renderowania
+                 StateHasChanged();
+
+                 // Opcjonalnie: Zresetuj formularz oceny po pomyślnym dodaniu
+                 ratingInput = new RatingInputModel();
+             }
+        }
+    }
+
+    // Ważne: Implementacja IDisposable, aby zwolnić kontekst, jeśli komponent zostanie zniszczony
+    // Choć DisposeAsync() jest wywoływane na końcu OnParametersSetAsync, to dobra praktyka.
+     public async void Dispose()
+     {
+          // Sprawdzamy, czy _dbContext nie jest null przed próbą zwolnienia
+          // Jest to ważne, bo _dbContext jest ustawiane na null po zwolnieniu w OnParametersSetAsync
+          if (_dbContext != null) await _dbContext.DisposeAsync();
+     }
+}

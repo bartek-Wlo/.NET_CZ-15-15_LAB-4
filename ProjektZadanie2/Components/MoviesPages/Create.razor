@@ -19,8 +19,8 @@
         <InputText id="title" class="form-control" @bind-Value="movie.Title" />
     </div>
     <div class="mb-3">
-        <label for="description" class="form-label">Description:</label> @* Zmień etykietę z "Director" na "Description" *@
-        <InputText id="description" class="form-control" @bind-Value="movie.Description" /> @* Zmień z movie.Director na movie.Description *@
+        <label for="description" class="form-label">Description:</label>
+        <InputText id="description" class="form-control" @bind-Value="movie.Description" />
     </div>
      <div class="mb-3">
         <label for="releaseYear" class="form-label">Release Year:</label>
@@ -28,11 +28,11 @@
     </div>
      <div class="mb-3">
         <label for="releaseDate" class="form-label">Release Date:</label>
-        <InputDate TValue="DateTime?" id="releaseDate" class="form-control" @bind-Value="movie.ReleaseDate" /> @* Upewnij się, że używasz movie.ReleaseDate *@
+        <InputDate TValue="DateTime?" id="releaseDate" class="form-control" @bind-Value="movie.ReleaseDate" />
     </div>
      <div class="mb-3">
-        <label for="rate" class="form-label">Rate:</label> @* Dodaj pole dla Rate *@
-        <InputNumber TValue="double?" id="rate" class="form-control" @bind-Value="movie.Rate" /> @* Odwołaj się do movie.Rate *@
+        <label for="rate" class="form-label">Rate:</label> 
+        <InputNumber TValue="double?" id="rate" class="form-control" @bind-Value="movie.Rate" /> 
     </div>
 
     <button type="submit" class="btn btn-primary">Create</button>
@@ -45,8 +45,8 @@
 
     protected override void OnInitialized()
     {
-        // Inicjalizacja obiektu, jeśli potrzebna domyślne wartości
          movie = new Movie();
+         movie.IncreaseRateNumbers();
     }
 
     private async Task HandleValidSubmit(EditContext editContext)
