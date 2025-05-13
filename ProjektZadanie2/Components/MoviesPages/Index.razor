@@ -1,9 +1,12 @@
 @page "/movies"
-@using ProjektZadanie2.Data.Models
-@using ProjektZadanie2.Data 
-@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
 
-@inject IDbContextFactory<ApplicationDbContext> DbFactory // Zalecane wstrzykiwanie dla UI
+@using ProjektZadanie2.Data.Models
+@using ProjektZadanie2.Data
+@using Microsoft.EntityFrameworkCore
+@implements IAsyncDisposable // Dodajemy implementację IAsyncDisposable
+
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager Navigation
 
 <h3>Movie List</h3>
@@ -21,20 +24,29 @@ else
     <table class="table">
         <thead>
             <tr>
-                <th>Title</th>
-                <th>Release Year</th>
-                <th></th>
+                <th @onclick="() => SortTable(nameof(Movie.Title))" style="cursor: pointer;">
+                    Title @GetSortIndicator(nameof(Movie.Title))
+                </th>
+                <th @onclick="() => SortTable(nameof(Movie.ReleaseYear))" style="cursor: pointer;">
+                    Release Year @GetSortIndicator(nameof(Movie.ReleaseYear))
+                </th>
+                <th @onclick="() => SortTable(nameof(Movie.ReleaseDate))" style="cursor: pointer;">
+                    Release Date @GetSortIndicator(nameof(Movie.ReleaseDate))
+                </th>
+                <th @onclick="() => SortTable(nameof(Movie.Rate))" style="cursor: pointer;">
+                    Rating @GetSortIndicator(nameof(Movie.Rate))
+                </th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var movie in movies)
+            @foreach (var movie in sortedMovies) // Używamy posortowanej listy
             {
                 <tr>
                     <td>@movie.Title</td>
-                    @* <td>@movie.Description</td> *@
                     <td>@movie.ReleaseYear</td>
-                    <td>@movie.ReleaseDate?.ToShortDateString()</td> 
-                    <td>@movie.Rate</td> 
+                    <td>@movie.ReleaseDate?.ToShortDateString()</td>
+                    <td>@movie.Rate</td>
                     <td>
                         <a href="/movies/edit/@movie.Id">Edit</a> |
                         <a href="/movies/details/@movie.Id">Details</a> |
@@ -48,20 +60,77 @@ else
 
 @code {
     private List<Movie>? movies;
-    private ApplicationDbContext _dbContext = default!; // Zmienna do przechowywania kontekstu
+    private ApplicationDbContext _dbContext = default!;
 
-    protected override async Task OnInitializedAsync()
-    {
-        // Uzyskaj instancję DbContext z fabryki
+    // Zmienne do sortowania
+    private string? _currentSortColumn;
+    private bool _isAscending = true;
+
+    /* PRZECHOWUJE POSORTOWANE FILMY WG. ZADANANEJ KOLEJNŚCI */
+    private IEnumerable<Movie> sortedMovies => movies == null ? Enumerable.Empty<Movie>() : GetSortedMovies();
+
+    protected override async Task OnInitializedAsync() {
         _dbContext = DbFactory.CreateDbContext();
-        // Załaduj filmy z bazy danych
         movies = await _dbContext.Movies.ToListAsync();
     }
 
-    // Ważne: Zwolnij DbContext, gdy komponent nie jest już używany
-    // W Blazor Web App, często potrzebujesz IDisposable
-     public async void Dispose()
-     {
-         await _dbContext.DisposeAsync();
-     }
+    /* USTAWIA SORTOWANĄ KOLUMNĘ, KIERUNEK SORTOWANIA */
+    private void SortTable(string columnName) {
+        if (movies == null) return;
+        if (columnName == _currentSortColumn) { _isAscending = !_isAscending; }
+        else {
+            _currentSortColumn = columnName;
+            _isAscending = true; // Domyślnie sortuj rosnąco dla nowej kolumny
+        }
+    }
+
+    /* SORTUJE FILMY DO ZMIENNEJ -> private IEnumerable<Movie> sortedMovies */
+    private IEnumerable<Movie> GetSortedMovies() {
+        if (movies == null || string.IsNullOrEmpty(_currentSortColumn)) {
+            return movies ?? Enumerable.Empty<Movie>();
+        }
+
+        if (_isAscending) {
+            switch (_currentSortColumn) {
+                case nameof(Movie.Title):
+                    return movies.OrderBy(m => m.Title);
+                case nameof(Movie.ReleaseYear):
+                    return movies.OrderBy(m => m.ReleaseYear);
+                case nameof(Movie.ReleaseDate):
+                    // Obsługa wartości null dla ReleaseDate, umieszczając je na końcu
+                    return movies.OrderBy(m => m.ReleaseDate.HasValue ? 0 : 1).ThenBy(m => m.ReleaseDate);
+                case nameof(Movie.Rate):
+                    return movies.OrderBy(m => m.Rate);
+                default:
+                    return movies;
+            }
+        } else {
+            switch (_currentSortColumn) {
+                case nameof(Movie.Title):
+                    return movies.OrderByDescending(m => m.Title);
+                case nameof(Movie.ReleaseYear):
+                    return movies.OrderByDescending(m => m.ReleaseYear);
+                case nameof(Movie.ReleaseDate):
+                    return movies.OrderByDescending(m => m.ReleaseDate.HasValue ? 1 : 0).ThenByDescending(m => m.ReleaseDate);
+                case nameof(Movie.Rate):
+                    return movies.OrderByDescending(m => m.Rate);
+                default:
+                    return movies;
+            }
+        }
+    }
+
+    /* ZWRACA SYMBOL DOPISYWANY DO NAZWY KOLUMNY */
+    private string GetSortIndicator(string columnName) {
+        if (columnName == _currentSortColumn) {
+            return _isAscending ? "▲" : "▼";
+        }
+        return string.Empty;
+    }
+
+    public async ValueTask DisposeAsync() {
+        if (_dbContext != null) {
+            await _dbContext.DisposeAsync();
+        }
+    }
 }

@@ -6,15 +6,15 @@
 @using ProjektZadanie2.Data.Models
 @using ProjektZadanie2.Data
 @using Microsoft.EntityFrameworkCore
-@using Microsoft.AspNetCore.Components.Forms // Dla EditForm
-@using Microsoft.AspNetCore.Identity // Dla UserManager, jeśli potrzebne (nie w tej uproszczonej wersji)
-@using Microsoft.AspNetCore.Components.Authorization // Dla AuthorizeView
-@using Microsoft.AspNetCore.Authorization // Dla [Authorize]
-@using System.ComponentModel.DataAnnotations // Dla [Required], [Range] na RatingInputModel
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel.DataAnnotations
 
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager Navigation
-@inject AuthenticationStateProvider AuthenticationStateProvider // Potrzebne dla AuthorizeView
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 @* Nie potrzebujemy wstrzykiwać UserManager w tej uproszczonej wersji,
    ponieważ nie śledzimy, który użytkownik dodał konkretną ocenę.
@@ -59,7 +59,11 @@ else // Film znaleziony, wyświetlamy szczegóły
             (@movie.RateNumbers ratings) @* Wyświetlamy liczbę ocen *@
         </dd>
 
-        @* DODAJ INNE POLA, KTÓRE CHCESZ WYŚWIETLIĆ *@
+        @if (!string.IsNullOrEmpty(movie.ImageUrl)) {// Sprawdź, czy URL istnieje i nie jest pusty
+            <div class="mb-3"> @* Opcjonalny div do marginesu *@
+                <img src="@movie.ImageUrl" alt="Image for @movie.Title" class="img-fluid" style="max-width: 300px; height: auto;" /> @* Tag IMG *@
+            </div>
+        }
     </dl>
 
     @* Sekcja dodawania oceny przez zalogowanego użytkownika *@
@@ -148,38 +152,13 @@ else // Film znaleziony, wyświetlamy szczegóły
 
             if(movieToUpdate != null)
             {
-                 // Pobierz aktualne statystyki z obiektu w kontekście
-                 double currentTotal = (movieToUpdate.Rate ?? 0) * movieToUpdate.RateNumbers; // Całkowita suma poprzednich ocen (użyj 0 jeśli Rate jest null)
-                 int currentCount = movieToUpdate.RateNumbers; // Liczba poprzednich ocen
+                movieToUpdate.AddRating(ratingInput.Value);
 
-                 int newRatingValue = ratingInput.Value; // Wartość nowej oceny z formularza
-
-                 // Przelicz nową całkowitą sumę i nową liczbę ocen
-                 double updatedTotal = currentTotal + newRatingValue;
-                 int updatedCount = currentCount + 1;
-
-                 // Aktualizuj właściwości filmu
-                 movieToUpdate.Rate = updatedTotal / updatedCount; // Nowa średnia (double/int = double)
-                 @* movieToUpdate.RateNumbers = updatedCount; // Nowa liczba ocen *@
-                 movieToUpdate.IncreaseRateNumbers();
-
-                 // Oznacz film do aktualizacji w bazie danych
-                 // dbContextForSave.Movies.Update(movieToUpdate); // Update jest zazwyczaj automatyczny po modyfikacji wczytanego obiektu
-                                                                   // ale jawne wywołanie nie szkodzi i jest czytelne.
-
-                 // Zapisz zmiany w bazie danych
-                 await dbContextForSave.SaveChangesAsync();
-
-                 // Po zapisie, załaduj ponownie dane strony, aby odświeżyć wyświetlaną średnią ocenę i licznik
-                 // Robimy to, wywołując metodę ładowania danych OnParametersSetAsync
-                 await OnParametersSetAsync();
-
-                 // Poinformuj Blazora, że stan komponentu się zmienił i wymaga ponownego renderowania
-                 StateHasChanged();
-
-                 // Opcjonalnie: Zresetuj formularz oceny po pomyślnym dodaniu
-                 ratingInput = new RatingInputModel();
-             }
+                await dbContextForSave.SaveChangesAsync();
+                await OnParametersSetAsync(); // Załaduj ponownie strone
+                StateHasChanged(); // stan komponentu się zmienił i wymaga ponownego renderowania
+                ratingInput = new RatingInputModel(); // Reset formularza
+            }
         }
     }
 

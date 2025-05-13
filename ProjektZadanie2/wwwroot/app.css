@@ -58,3 +58,22 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+.video-container {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio (9/16 = 0.5625) */
+    height: 0;
+    overflow: hidden;
+    max-width: 100%;
+    margin-bottom: 1rem; /* Opcjonalny margines pod wideo */
+}
+
+.video-container iframe,
+.video-container object,
+.video-container embed {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 90%;
+    height: 90%;
+}

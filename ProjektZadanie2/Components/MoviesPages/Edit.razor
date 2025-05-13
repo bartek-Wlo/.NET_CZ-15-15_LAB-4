@@ -55,8 +55,11 @@ else // Film znaleziony, wyświetlamy formularz edycji
         </div>
          <div class="mb-3">
             <label for="rate" class="form-label">Rate:</label>
-             @* Używamy InputNumber TValue="double?" dla nullable double *@
             <InputNumber TValue="double?" id="rate" class="form-control" @bind-Value="movie.Rate" />
+        </div>
+        <div class="mb-3">
+            <label for="ImageUrl" class="form-label">Image Url:</label>
+            <InputText id="ImageUrl" class="form-control" @bind-Value="movie.ImageUrl" />
         </div>
         
 
